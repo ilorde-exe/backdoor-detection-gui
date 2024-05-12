@@ -17,7 +17,7 @@ This Signature-Based Malware Detection Program is designed to detect known malwa
 ## Installation and Usage
 To run the program, follow these steps:
 1. Install the required dependencies specified in `requirements.txt` by running:
-   """pip install -r requirements.txt"""
+   pip install -r requirements.txt
 
 2. Execute the main Python file `gui_win_en.py` using Python:
 
