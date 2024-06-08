@@ -6,6 +6,56 @@ from Cryptodome.PublicKey import RSA
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Signature import PKCS1_v1_5
 
+def generate_file_hash(file_path):
+    sha256_hash = hashlib.sha256()
+
+    with open(file_path,"rb") as f:
+        # Read and update hash in chunks of 4K
+        for byte_block in iter(lambda: f.read(4096),b""):
+            sha256_hash.update(byte_block)
+    
+    return sha256_hash.hexdigest()
+
+def is_elf_file(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            # Read the ELF header
+            elf_header = f.read(64)
+            if len(elf_header) < 64:
+                return False
+
+            # Check the magic number (7f 45 4c 46)
+            if elf_header[0:4] != b'\x7fELF':
+                return False
+
+            # Check the file class (1 for 32-bit, 2 for 64-bit)
+            if elf_header[4] not in [1, 2]:
+                return False
+
+            # Check the data encoding (1 for little endian, 2 for big endian)
+            if elf_header[5] not in [1, 2]:
+                return False
+
+            # Check the ELF version (1 for original version of ELF)
+            if elf_header[6] != 1:
+                return False
+
+            # Check the OS/ABI (0 for System V, 3 for Linux)
+            if elf_header[7] not in [0, 3]:
+                return False
+
+            # Check the ABI version (0 for System V, non-zero for others)
+            if elf_header[8] != 0:
+                return False
+
+            # Check the type (1 for relocatable, 2 for executable, 3 for shared, 4 for core)
+            if int.from_bytes(elf_header[16:18], 'little') not in [1, 2, 3, 4]:
+                return False
+
+        return True
+    except Exception as e:
+        print(f"Error checking if file is an ELF file: {e}")
+        return False
 
 def verify(content, signature, public_key):
     try:
@@ -27,63 +77,36 @@ def generate(n=2048):
     public_key = keypair.public_key().export_key()
     return private_key, public_key
 
+def is_pe_file(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            dos_header = f.read(64)
+            if len(dos_header) < 64:
+                return False
 
-def sign(content, private_key):
-    try:
-        private_key = RSA.import_key(private_key)
-    except ValueError:
-        return
-    signer = PKCS1_v1_5.new(private_key)
-    try:
-        signature = signer.sign(SHA256.new(content))
-    except TypeError:  # the key is valid, but is a public key
-        return
-    signature = base64.encodebytes(signature).decode()
-    return "The file contains malware and poses a threat to your computer."
+            if dos_header[0:2] != b'MZ':
+                return False
 
+            pe_offset = int.from_bytes(dos_header[60:64], 'little')
+            f.seek(pe_offset)
 
-def encrypt(content, public_key):
-    try:
-        public_key = RSA.import_key(public_key)
-    except ValueError:
-        return
-    session_key = get_random_bytes(32)
-    # Encrypt a session key with the public RSA key
-    cipher_rsa = PKCS1_OAEP.new(public_key)
-    encrypted_session_key = cipher_rsa.encrypt(session_key)
-    # Encrypt the data with the AES session key
-    cipher_aes = AES.new(session_key, AES.MODE_EAX)
-    encrypted_message, tag = cipher_aes.encrypt_and_digest(content)
-    return {
-        'encrypted_session_key': base64.encodebytes(encrypted_session_key).decode(),
-        'nonce': base64.encodebytes(cipher_aes.nonce).decode(),
-        'tag': base64.encodebytes(tag).decode(),
-        'encrypted_message': base64.encodebytes(encrypted_message).decode()
-    }
+            pe_header = f.read(24)
+            if len(pe_header) < 24:
+                return False
 
+            if pe_header[0:4] != b'PE\x00\x00':
+                return False
 
-def decrypt(content, private_key):
-    try:
-        private_key = RSA.import_key(private_key)
-    except ValueError:
-        return 
-    # Decrypt the session key with the private RSA key
-    cipher_rsa = PKCS1_OAEP.new(private_key)
-    try:
-        encrypted_session_key = base64.b64decode(content.get('encrypted_session_key'))
-        nonce = base64.b64decode(content.get('nonce'))
-        tag = base64.b64decode(content.get('tag'))
-        encrypted_message = base64.b64decode(content.get('encrypted_message'))
-    except (TypeError, binascii.Error):
-        return 
-    try:
-        session_key = cipher_rsa.decrypt(encrypted_session_key)
-    except (AttributeError, ValueError, TypeError):
-        return 
-    # Decrypt the data with the AES session key
-    cipher_aes = AES.new(session_key, AES.MODE_EAX, nonce)
-    try:
-        message = cipher_aes.decrypt_and_verify(encrypted_message, tag)
-        return message
-    except ValueError:
-        return 
+            opt_header_size = int.from_bytes(pe_header[20:22], 'little')
+
+            opt_header = f.read(opt_header_size)
+            if len(opt_header) < opt_header_size:
+                return False
+
+            if opt_header[0:2] not in [b'\x0b\x01', b'\x0b\x02']:
+                return False
+
+        return True
+    except Exception as e:
+        print(f"Error checking if file is a PE file: {e}")
+        return False

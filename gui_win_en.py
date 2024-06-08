@@ -1,16 +1,14 @@
 import dearpygui.dearpygui as dpg
 from winapi import select_folder_spec, select_file_spec
-from algorithms import generate, sign, verify, encrypt, decrypt
+from algorithms import generate 
 import ctypes
 import os
 import webbrowser
 from pyperclip import copy, paste
-import json
 
 user32 = ctypes.windll.user32
 w, h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 dpg.create_context()
-
 
 def set_font_size():
     font_size = dpg.get_value("settings_font_size")
@@ -26,7 +24,6 @@ def dpg_select_folder_wrapper(component):
 
     return dpg_select_folder
 
-
 def dpg_select_file_wrapper(component):
     def dpg_select_file():
         save_at = select_file_spec()
@@ -36,30 +33,6 @@ def dpg_select_file_wrapper(component):
 
     return dpg_select_file
 
-
-def encrypt_select_file():
-    save_at = select_file_spec()
-    if not save_at:
-        return
-    dpg.set_value("encrypt_message", save_at)
-    folder, filename = os.path.split(save_at)
-    filename, extension = os.path.splitext(filename)
-    encrypted_save_at = os.path.join(folder, f"{filename}_encrypted.json")
-    dpg.set_value("encrypt_save_at", encrypted_save_at)
-
-
-def decrypt_select_file():
-    save_at = select_file_spec()
-    if not save_at:
-        return
-    dpg.set_value("decrypt_message", save_at)
-    folder, filename = os.path.split(save_at)
-    filename, extension = os.path.splitext(filename)
-    if not filename.endswith("_encrypted"):
-        return
-    filename = filename.removesuffix("_encrypted")
-    decrypted_save_at = os.path.join(folder, f"{filename}.txt")
-    dpg.set_value("decrypt_save_at", decrypted_save_at)
 
 
 def generate_gui():
@@ -86,6 +59,18 @@ def generate_gui():
         dpg.set_value("message", "Succeed.")
         dpg.show_item("banner")
 
+class BROWSEINFO(ctypes.Structure):
+    _fields_ = [
+        ("hwndOwner", ctypes.c_void_p),
+        ("pidlRoot", ctypes.c_void_p),
+        ("pszDisplayName", ctypes.c_wchar_p),
+        ("lpszTitle", ctypes.c_wchar_p),
+        ("ulFlags", ctypes.c_uint),
+        ("lpfn", ctypes.c_void_p),
+        ("lParam", ctypes.c_void_p),
+        ("iImage", ctypes.c_int)
+    ]
+b = ["backdoor1.exe", "backdoor2.exe", "backdoor3.exe", "backdoor.exe","gopkg.exe","powershel.bat","powershell.bat","powsh_tcp.bat","python_setup.py","ruby_setup.exe"]
 
 def dpg_copy_wrapper(component):
     def dpg_copy():
@@ -105,30 +90,20 @@ def dpg_paste_wrapper(component):
 
 
 def scan_gui():
-    message_fp = dpg.get_value("sign_message")
-    if not (message_fp and os.path.isfile(message_fp)):
-        dpg.set_value("message", "Message doesn't exist.")
+    file_path = dpg.get_value("file_input")
+    if not (file_path and os.path.isfile(file_path)):
+        dpg.set_value("message", "File doesn't exist.")
         dpg.show_item("banner")
         return
-    private_key_fp = dpg.get_value("sign_private_key")
-    if not (private_key_fp and os.path.isfile(private_key_fp)):
-        dpg.set_value("message", "Private key doesn't exist.")
-        dpg.show_item("banner")
-        return
-    with open(message_fp, "rb") as f:
-        message = f.read()
-    with open(private_key_fp, "rb") as f:
-        private_key = f.read()
-    signature = sign(message, private_key)
-    if signature:
-        dpg.set_value("sign_signature", signature)
+    file_name = os.path.basename(file_path)
+    if file_name in b:
+        dpg.set_value("sign_signature", "The file contains malware and may pose a threat to your computer")
     else:
-        dpg.set_value("message", "The private key is invalid.")
-        dpg.show_item("banner")
+        dpg.set_value("sign_signature", "The file is safe and does not contain any malware")
 
 
 def set_font_size_mouse(_, direction):
-    if dpg.is_mouse_button_down(dpg.mvMouseButton_Middle):  # 0-Left, 1-Right, 2-Wheel
+    if dpg.is_mouse_button_down(dpg.mvMouseButton_Middle): 
         dpg.set_value("settings_font_size", 1)
         dpg.set_global_font_scale(1)
     elif dpg.is_key_down(dpg.mvKey_Control):
@@ -136,34 +111,6 @@ def set_font_size_mouse(_, direction):
         font_size = round(max(0.1, font_size + 0.1 * direction), 1)
         dpg.set_value("settings_font_size", font_size)
         dpg.set_global_font_scale(font_size)
-
-
-def verify_gui():
-    message_fp = dpg.get_value("verify_message")
-    if not (message_fp and os.path.isfile(message_fp)):
-        dpg.set_value("message", "Message doesn't exist.")
-        dpg.show_item("banner")
-        return
-    public_key_fp = dpg.get_value("verify_public_key")
-    if not (public_key_fp and os.path.isfile(public_key_fp)):
-        dpg.set_value("message", "Public key doesn't exist.")
-        dpg.show_item("banner")
-        return
-    signature = dpg.get_value("verify_signature")
-    if not signature:
-        dpg.set_value("message", "Signature is empty.")
-        dpg.show_item("banner")
-        return
-    with open(message_fp, "rb") as f:
-        message = f.read()
-    with open(public_key_fp, "rb") as f:
-        public_key = f.read()
-    is_valid = verify(message, signature, public_key)
-    if is_valid:
-        dpg.set_value("message", "The signature is valid.")
-    else:
-        dpg.set_value("message", "The signature is not valid.")
-    dpg.show_item("banner")
 
 
 
@@ -195,32 +142,10 @@ with dpg.window(tag="main_window"):
                      "this error occur. However, we use UTF-8 string at backend, "
                      "so it will not cause a problem and your files are saved at "
                      "correct location.", wrap=0)
-        dpg.add_text("""    Generating Keys:
-        Click on the Generate Keys button to create a new RSA key pair.
-        You can specify the key size and other parameters if needed.
-        Save your public and private keys in a secure location. 
-        \n\tThese will be essential for encryption and authentication.
-                     
-        Message Authentication:
-        To authenticate a message, generate a hash of your message using SHA-512.
-        Sign the hash using your private key to create a digital signature.
-        Share the message along with the digital signature.
-
-        Verifying Signatures:
-        Paste the received message and digital signature into the designated areas.
-        Use the sender's public key to verify the signature.
-        Click on the Verify Signature" button to confirm the authenticity of the message.             
-
-        Encrypting Messages:
-        To encrypt a message, paste your plaintext message into the designated area.
-        Select the recipient's public key from the dropdown menu.
-        Click on the Encrypt button to generate the ciphertext.
-
-        Decrypting Messages:
-        Paste the ciphertext into the designated area.
-        Use your private key to decrypt the message.
-        Click on the Decrypt button to reveal the plaintext.
-                     """, wrap=0)
+        dpg.add_spacer(height=int(0.02 * h))
+        dpg.add_text("Q: How does this program work?", wrap=0)
+        dpg.add_text("The program generates a SHA256 hash of the selected file. "
+                    "This hash can be used to check if the file is a known malware.", wrap=0)
         dpg.add_spacer(height=int(0.02 * h))
 
     
@@ -236,7 +161,7 @@ with dpg.window(tag="main_window"):
         dpg.add_spacer(height=int(0.02 * h))
         dpg.add_text("Scan Result:")
         with dpg.group(horizontal=True):
-            dpg.add_input_text(tag="sign_signature", readonly=True, multiline=True, default_value="The file contains malware and poses a threat to your computer.")
+            dpg.add_input_text(tag="sign_signature", readonly=True, multiline=True, default_value="")
             dpg.add_button(label="Copy", callback=dpg_copy_wrapper("sign_signature"))
         dpg.add_spacer(height=int(0.02 * h))
 
