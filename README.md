@@ -1,6 +1,6 @@
 # Malware Detection GUI Program
 
-![alt text](https://github.com/ilorde-exe/malware-detection-gui/blob/main/image.jpg?raw=true)
+![alt text](https://github.com/ilorde-exe/malware-detection-gui/blob/main/Screenshot 2024-06-09 022759.png?raw=true)
 
 ## Overview
 This Signature-Based Malware Detection Program is designed to detect known malware by comparing file hashes against a database of known malware signatures provided in `hashes.txt`. The program provides a graphical user interface (GUI) for ease of use.
